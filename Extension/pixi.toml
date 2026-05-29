@@ -5,18 +5,19 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 [tasks]
 
 [dependencies]
-python = "3.11.*"
-knime-extension = "5.10.*"
-knime-python-base = "5.10.*"
-tokenizers = "0.20.1.*"
-transformers = "4.45.2.*"
+python = "*"
+knime-extension = "5.12.*"
+knime-python-base = "5.12.*"
+knime-python-versions = "5.12.*"
+tokenizers = ">=0.20.1"
+transformers = ">=4.45.2"
 pytorch-cpu = ">=2.7.0,<3"
-scikit-learn = "1.7.2.*"
+scikit-learn = ">=1.7.2"
 
 
 [feature.build.dependencies]
-python = "3.11.*"
-knime-extension-bundling = "5.10.*"
+python = "*"
+knime-extension-bundling = "5.12.*"
 
 [feature.build.tasks]
 build = { args = [{ "arg" = "dest", "default" = "./local-update-site" }], cmd = "build_python_extension.py . {{ dest }}"}
