@@ -12,7 +12,7 @@ from transformers import (
     AutoImageProcessor,
 )
 import torch
-from torch.optim import Adam
+from torch.optim import AdamW
 
 
 LOGGER = logging.getLogger(__name__)
@@ -69,7 +69,6 @@ class VisionTransformerLearnerNode:
 
     This node supports fine-tuning of three different models' architectures:
 
-
     -**Vision Transformer (ViT)**: A transformer-based model for image classification that treats images as sequences of
       patches and applies self-attention mechanisms.
       [More info](https://huggingface.co/docs/transformers/model_doc/vit)
@@ -93,7 +92,7 @@ class VisionTransformerLearnerNode:
     ### How It Works:
     1.The node processes images and encodes labels.
     2.The selected transformer model is initialized and fine-tuned using the provided training data.
-    3.A loss function (Cross-Entropy Loss) and optimizer (Adam) are applied to optimize model performance.
+    3.A loss function (Cross-Entropy Loss) and optimizer (AdamW) are applied to optimize model performance.
     4.Training runs for the specified number of epochs, tracking performance metrics.
     5.The trained model and a performance summary table are returned as outputs.
 
@@ -311,15 +310,28 @@ class VisionTransformerLearnerNode:
         exec_context.set_progress(0.3)
 
         # Model setup
-        model.config.num_labels = num_classes
-        if self.model_choice == mutil.ViTModelSelection.PYRAMID.name:
+        if self.model_choice == mutil.ViTModelSelection.ViT.name:
+            backbone = model.vit
+            model.classifier = torch.nn.Linear(model.config.hidden_size, num_classes)
+        elif self.model_choice == mutil.ViTModelSelection.SWIN.name:
+            backbone = model.swin
+            model.classifier = torch.nn.Linear(model.config.hidden_size, num_classes)
+        elif self.model_choice == mutil.ViTModelSelection.PYRAMID.name:
+            backbone = model.pvt
             model.classifier = torch.nn.Linear(
                 model.config.hidden_sizes[-1], num_classes
             )
-        else:
-            model.classifier = torch.nn.Linear(model.config.hidden_size, num_classes)
+
+        for p in backbone.parameters():
+            p.requires_grad = False
+
+        for p in model.classifier.parameters():
+            p.requires_grad = True
+
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = Adam(model.parameters(), lr=self.learning_rate)
+        optimizer = AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()), lr=self.learning_rate
+        )
 
         # Training loop with table creation
         training_summary = []
@@ -439,7 +451,8 @@ class ClassificationPredictorGeneralSettings:
     description="Table containing an image column.",
 )
 @knext.output_table(
-    name="Output Data", description="The input table concatenated with a predictions column and optionally class probabilities."
+    name="Output Data",
+    description="The input table concatenated with a predictions column and optionally class probabilities.",
 )
 class VisionTransformerPredictor:
     """
@@ -516,7 +529,9 @@ class VisionTransformerPredictor:
             self.predictor_settings.prediction_column, model_port.spec.target_schema
         )
 
-        image_col_names_list = model_port.spec.image_schema.column_names # list containing exactly one column name
+        image_col_names_list = (
+            model_port.spec.image_schema.column_names
+        )  # list containing exactly one column name
 
         images = df[image_col_names_list[0]]
 
